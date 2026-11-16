@@ -13,12 +13,16 @@ import streamlit as st
 import streamlit.components.v1 as components
 import logic
 
-
-@st.cache_data(ttl=300, show_spinner=False)
-def get_cached_sheets(spreadsheet_id: str):
-    """Cache daftar tab sheet selama 5 menit."""
-    return logic.fetch_available_sheets(spreadsheet_id)
-
+STATIC_SHEETS = [
+    "CLIENT JONGGOL",
+    "CLIENT SEMARANG",
+    "CLIENT JATIM",
+    "CLIENT CIKANDE",
+    "CLIENT UEP PALEMBANG",
+    "CLIENT NTT",
+    "CLIENT SULSELBAR",
+    "CLIENT PAPUA",
+]
 
 @st.cache_data(ttl=300, show_spinner=False)
 def get_cached_master(spreadsheet_id: str, sheet_name: str):
@@ -114,12 +118,6 @@ def render_ui() -> None:
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="main-title">🏥 WhatsApp Chat Hospital Code Matcher</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sub-title">Sistem otomatisasi penyisipan kode klien rumah sakit / klinik dari WhatsApp chat ke format berlabel.</div>',
-        unsafe_allow_html=True
-    )
-
     # Inisialisasi Session State jika belum ada
     if "process_result" not in st.session_state:
         st.session_state["process_result"] = None
@@ -132,62 +130,55 @@ def render_ui() -> None:
     # 1. FORMULIR INPUT
     # ============================================================
     with st.container():
-        col_region, col_refresh = st.columns([4, 1])
+      col_region, col_refresh = st.columns([4, 1])
 
-        with col_region:
-            # Ambil sheet names yang tersedia (dengan caching bawaan / fallback)
-            available_sheets = get_cached_sheets(logic.DEFAULT_SPREADSHEET_ID)
-            
-            # Opsi dropdown dengan tambahan opsi manual
-            sheet_options = available_sheets.copy()
-            custom_option_label = "✏️ Ketik Nama Sheet Lainnya..."
-            sheet_options.append(custom_option_label)
+      with col_region:
+        default_idx = 0
+        if logic.DEFAULT_SHEET_NAME in STATIC_SHEETS:
+          default_idx = STATIC_SHEETS.index(logic.DEFAULT_SHEET_NAME)
 
-            default_idx = 0
-            if logic.DEFAULT_SHEET_NAME in sheet_options:
-                default_idx = sheet_options.index(logic.DEFAULT_SHEET_NAME)
-
-            selected_sheet_choice = st.selectbox(
-                "Pilih Region Client (SHEET_NAME):",
-                options=sheet_options,
-                index=default_idx,
-                help="Pilih tab sheet pada Google Spreadsheet yang memuat master data wilayah ini."
-            )
-
-            # Jika memilih custom input
-            if selected_sheet_choice == custom_option_label:
-                final_sheet_name = st.text_input(
-                    "Masukkan Nama Sheet Manual:",
-                    value="CLIENT JONGGOL",
-                    placeholder="Contoh: CLIENT JONGGOL"
-                )
-            else:
-                final_sheet_name = selected_sheet_choice
-
-        with col_refresh:
-            st.write("")
-            st.write("")
-            if st.button("🔄 Muat Ulang Sheet", help="Segarkan daftar tab dari Google Spreadsheet"):
-                st.cache_data.clear()
-                st.rerun()
-
-        # Input Area CHAT_DATA
-        chat_input = st.text_area(
-            "Teks Chat (CHAT_DATA):",
-            height=200,
-            placeholder=(
-                "Tempel teks chat WhatsApp Anda di sini...\n"
-                "Contoh:\n"
-                "*JONGGOL*\n"
-                "RS Permata Jonggol: Pasien 5\n"
-                "RS Hermina Mekarsari..."
+        final_sheet_name = st.selectbox(
+            "Pilih Region Client:",
+            options=STATIC_SHEETS,
+            index=default_idx,
+            help=(
+                "Pilih tab sheet pada Google Spreadsheet yang memuat master"
+                " data wilayah ini."
             ),
-            help="Tempelkan percakapan chat lengkap dengan baris pertama berupa nama wilayah."
         )
 
-        col_btn, _ = st.columns([2, 5])
-        with col_btn:
-            submit_clicked = st.button("🚀 Kirim / Proses Data", type="primary", use_container_width=True)
+      with col_refresh:
+        st.write("")
+        st.write("")
+        if st.button(
+            "🔄 Muat Ulang Master",
+            help="Segarkan data master rumah sakit dari Google Spreadsheet",
+        ):
+          get_cached_master.clear()
+          st.rerun()
+
+      # Input Area CHAT_DATA
+      chat_input = st.text_area(
+          "Teks Chat (CHAT_DATA):",
+          height=200,
+          placeholder=(
+              "Tempel teks chat WhatsApp Anda di sini...\n"
+              "Contoh:\n"
+              "*JONGGOL*\n"
+              "RS Permata Jonggol: Pasien 5\n"
+              "RS Hermina Mekarsari..."
+          ),
+          help=(
+              "Tempelkan percakapan chat lengkap dengan baris pertama berupa"
+              " nama wilayah."
+          ),
+      )
+
+      col_btn, _ = st.columns([2, 5])
+      with col_btn:
+        submit_clicked = st.button(
+            "🚀 Kirim / Proses Data", type="primary", use_container_width=True
+        )
 
     # ============================================================
     # 2. LOGIKA PEMROSESAN SAAT TOMBOL KIRIM DIKLIK
@@ -297,57 +288,3 @@ def render_ui() -> None:
                 " perubahan Anda."
             ),
         )
-
-        # --------------------------------------------------------
-        # RINGKASAN METRIK & DETAIL DIAGNOSTIK
-        # --------------------------------------------------------
-        summary = result["summary"]
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total Baris", summary["total_lines"])
-        m2.metric("Baris Cocok", summary["matched_lines"])
-        m3.metric("Fasilitas Belum Cocok", summary["unmatched_facilities"])
-        m4.metric("Kecocokan Ambigu", summary["ambiguous_matches"])
-
-        # Tab Rincian untuk Unmatched & Ambiguous
-        tab_unmatched, tab_ambiguous, tab_raw_report = st.tabs([
-            f"Fasilitas Belum Terdaftar ({summary['unmatched_facilities']})",
-            f"Kecocokan Ambigu ({summary['ambiguous_matches']})",
-            "Laporan Teks Lengkap"
-        ])
-
-        with tab_unmatched:
-            if result["unmatched"]:
-                st.warning("Daftar baris yang terindikasi fasilitas kesehatan yang belum bisa ditemukan:")
-                for item in result["unmatched"]:
-                    st.markdown(
-                        f"- **Baris {item['line_number']}**: "
-                        f"<code style='color: #DC2626; background-color: #FEF2F2; padding: 2px 6px; border-radius: 4px; font-weight: 600;'>{item['hospital']}</code>",
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.success("Semua baris fasilitas berhasil dicocokkan! Tidak ada fasilitas yang belum terdaftar.")
-
-        with tab_ambiguous:
-            if result["ambiguous"]:
-                st.warning("Daftar fasilitas yang memiliki lebih dari satu kemungkinan kode unik:")
-                for item in result["ambiguous"]:
-                    with st.expander(f"Baris {item['line_number']}: {item['hospital']}" ):
-                        for m in item["matches"]:
-                            st.markdown(
-                                f"- **{m['alias']}** ➔ Kode: "
-                                f"<code style='color: #D97706; background-color: #FEFCE8; padding: 2px 6px; border-radius: 4px; font-weight: 600;'>{m['code']}</code> "
-                                f"({m.get('name', '')})",
-                                unsafe_allow_html=True,
-                            )
-            else:
-                st.success("Tidak ada kecocokan yang ambigu.")
-
-        with tab_raw_report:
-            report_text = logic.generate_review_report_txt(result["unmatched"], result["ambiguous"])
-            st.text_area("Laporan Diagnostik:", value=report_text, height=180, disabled=True)
-            st.download_button(
-                label="📥 Unduh Laporan Review (.txt)",
-                data=report_text,
-                file_name=f"{region_slug}_rumah_sakit_tidak_ditemukan.txt",
-                mime="text/plain"
-            )

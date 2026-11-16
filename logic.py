@@ -255,12 +255,10 @@ def add_hospital_code(line: str, hospital_master: List[Dict[str, Any]]) -> Tuple
         "name": hospital["name"]
     }
 
-
 def is_facility_line(line: str) -> bool:
     """Mengecek apakah suatu baris terindikasi sebagai nama fasilitas kesehatan."""
     normalized_line = normalize_text(line)
     return bool(FACILITY_PATTERN.search(normalized_line))
-
 
 def process_chat(chat_data: str, hospital_master: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -334,11 +332,9 @@ def process_chat(chat_data: str, hospital_master: List[Dict[str, Any]]) -> Dict[
         }
     }
 
-
 def generate_txt_export(updated_text: str) -> str:
     """Mengembalikan teks terformat untuk unduhan TXT."""
     return updated_text
-
 
 def generate_review_report_txt(
     unmatched: List[Dict[str, Any]],
@@ -366,7 +362,6 @@ def generate_review_report_txt(
             lines.append(f"    Code : {m['code']}")
 
     return "\n".join(lines)
-
 
 def generate_excel_export(process_result: Dict[str, Any]) -> Tuple[Optional[bytes], Optional[str]]:
     """

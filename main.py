@@ -10,17 +10,14 @@ import sys
 import streamlit as st
 import ui
 
-
 def main():
-    # Konfigurasi dasar tampilan halaman web Streamlit
     st.set_page_config(
-        page_title="WhatsApp Chat Client Code Matcher",
+        page_title="Check Client Code",
         page_icon="🏥",
         layout="wide",
         initial_sidebar_state="collapsed"
     )
 
-    # Render antarmuka pengguna
     ui.render_ui()
 
 
