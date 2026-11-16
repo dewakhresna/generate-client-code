@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 logic.py
 Modul logika pemrosesan chat, normalisasi teks, pengambilan data Google Sheets,
@@ -11,10 +10,27 @@ import re
 import unicodedata
 import urllib.request
 import pandas as pd
+import streamlit as st
 from typing import Dict, List, Optional, Tuple, Any
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def get_config(key: str, default: str = "") -> str:
+  # Cek apakah st.secrets tersedia dan memiliki secret key
+  try:
+    if hasattr(st, "secrets") and key in st.secrets:
+      return st.secrets[key]
+  except Exception:
+    pass
+
+  # Jika tidak ada di secrets, ambil dari environment variable (.env / os)
+  val = os.getenv(key)
+  if val is not None:
+    return val
+
+  return default
+
 # ============================================================
 # KONFIGURASI DEFAULT GOOGLE SHEETS
 # ============================================================
@@ -36,19 +52,29 @@ def get_export_url(spreadsheet_id: str = DEFAULT_SPREADSHEET_ID) -> str:
 
 
 def normalize_text(text: Any) -> str:
-    """
-    Normalisasi teks agar pencocokan nama rumah sakit lebih akurat.
-    Mengubah ke ASCII uppercase tanpa tanda baca berlebih.
-    """
     if text is None:
         return ""
-    text = unicodedata.normalize("NFKD", str(text))
+    
+    text = str(text)
+    
+    # 1. Konversi font Unicode khusus ke karakter standar
+    text = unicodedata.normalize("NFKC", text)
+    
+    # 2. Ubah ke ASCII dan Uppercase
     text = text.encode("ascii", "ignore").decode("ascii")
     text = text.upper()
+    
+    # 3. Hapus penomoran awal (misal: "1.", "2)", "1-") HANYA UNTUK PROSES MATCHING
+    text = re.sub(r"^\d+[\.\)]\s*", "", text)
+    
+    # 4. Hapus simbol bullet atau strip di awal baris
+    text = re.sub(r"^[-•]\s*", "", text)
+    
+    # 5. Bersihkan tanda baca dan spasi berlebih
     text = re.sub(r"[^A-Z0-9]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
+    
     return text
-
 
 def fetch_available_sheets(spreadsheet_id: str = DEFAULT_SPREADSHEET_ID) -> List[str]:
     """

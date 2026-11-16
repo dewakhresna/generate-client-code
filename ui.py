@@ -167,7 +167,13 @@ def render_ui() -> None:
         chat_input = st.text_area(
             "Teks Chat (CHAT_DATA):",
             height=200,
-            placeholder="Tempel teks chat WhatsApp Anda di sini...\nContoh:\n*JONGGOL*\n- RS Permata Jonggol: Pasien 5\n- RS Hermina Mekarsari...",
+            placeholder=(
+                "Tempel teks chat WhatsApp Anda di sini...\n"
+                "Contoh:\n"
+                "*JONGGOL*\n"
+                "RS Permata Jonggol: Pasien 5\n"
+                "RS Hermina Mekarsari..."
+            ),
             help="Tempelkan percakapan chat lengkap dengan baris pertama berupa nama wilayah."
         )
 
