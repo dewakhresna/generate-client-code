@@ -236,7 +236,9 @@ def add_hospital_code(line: str, hospital_master: List[Dict[str, Any]]) -> Tuple
     if f"[{code}]" in line:
         return line, {
             "status": "ALREADY_CODED",
-            "code": code
+            "code": code,
+            "alias": hospital["alias"],
+            "name": hospital["name"]
         }
 
     # Pertahankan prefix (spasi, bullet, tanda bintang bold)
@@ -370,9 +372,9 @@ def generate_excel_export(process_result: Dict[str, Any]) -> Tuple[Optional[byte
     """
     Membuat file Excel terstruktur dalam bentuk byte buffer in-memory.
     Menghasilkan multiple sheets:
-    - Sheet 1: Hasil Chat Terkode
-    - Sheet 2: Fasilitas Belum Terdaftar (Unmatched)
-    - Sheet 3: Kecocokan Ambigu (Ambiguous)
+    - Sheet 1: Hasil Chat
+    - Sheet 2: Tidak ditemukan
+    - Sheet 3: Data Ambigu
     """
     try:
         output = io.BytesIO()
@@ -385,12 +387,9 @@ def generate_excel_export(process_result: Dict[str, Any]) -> Tuple[Optional[byte
                 match_info = matched_by_line.get(idx)
                 lines_data.append({
                     "Baris": idx,
+                    "Kode Klien": match_info["code"] if match_info else "",
                     "Chat Asli": line.strip(),
-                    "Chat Berkode": process_result["updated_lines"][idx - 1].strip(),
-                    "Status": "MATCHED" if match_info else "TIDAK BERUBAH",
-                    "Kode Unik": match_info["code"] if match_info else "",
-                    "Nama Resmi RS": match_info["name"] if match_info else "",
-                    "Alias Cocok": match_info["alias"] if match_info else ""
+                    "Nama RS Terdaftar di Keissoft": match_info["name"] if match_info else "",
                 })
 
             df_chat = pd.DataFrame(lines_data)
@@ -399,10 +398,10 @@ def generate_excel_export(process_result: Dict[str, Any]) -> Tuple[Optional[byte
             # Sheet 2: Unmatched
             if process_result["unmatched"]:
                 df_unmatched = pd.DataFrame([
-                    {"Baris": u["line_number"], "Teks Fasilitas": u["hospital"]}
+                    {"Baris": u["line_number"], "Tidak ditemukan": u["hospital"]}
                     for u in process_result["unmatched"]
                 ])
-                df_unmatched.to_excel(writer, sheet_name="Fasilitas Belum Cocok", index=False)
+                df_unmatched.to_excel(writer, sheet_name="Tidak ditemukan", index=False)
 
             # Sheet 3: Ambiguous
             if process_result["ambiguous"]:
@@ -411,13 +410,12 @@ def generate_excel_export(process_result: Dict[str, Any]) -> Tuple[Optional[byte
                     for m in a["matches"]:
                         amb_rows.append({
                             "Baris": a["line_number"],
-                            "Teks Baris": a["hospital"],
-                            "Alias Ditemukan": m.get("alias", ""),
-                            "Kode Unik": m.get("code", ""),
-                            "Nama Resmi": m.get("name", "")
+                            "Data Ambigu": a["hospital"],
+                            "Kode Klient": m.get("code", ""),
+                            "Nama RS Terdaftar di Keissoft": m.get("name", "")
                         })
                 df_ambiguous = pd.DataFrame(amb_rows)
-                df_ambiguous.to_excel(writer, sheet_name="Kecocokan Ambigu", index=False)
+                df_ambiguous.to_excel(writer, sheet_name="Data Ambigu", index=False)
 
         return output.getvalue(), None
     except Exception as e:
