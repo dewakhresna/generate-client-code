@@ -34,17 +34,18 @@ def get_config(key: str, default: str = "") -> str:
 # ============================================================
 # KONFIGURASI DEFAULT GOOGLE SHEETS
 # ============================================================
-DEFAULT_SPREADSHEET_ID = os.getenv("DEFAULT_SPREADSHEET_ID", "")
-DEFAULT_SHEET_NAME = os.getenv("DEFAULT_SHEET_NAME", "Sheet1")
+DEFAULT_SPREADSHEET_ID = get_config("DEFAULT_SPREADSHEET_ID", "")
+DEFAULT_SHEET_NAME = get_config("DEFAULT_SHEET_NAME", "Sheet1")
 
 FACILITY_PATTERN = re.compile(
-    r"^(RS|RUMAH SAKIT|RSGM|RSIA|RSUD|RSU|RSI|RSJ|RSK|"
+    r"\b(RS|RUMAH SAKIT|RSGM|RSIA|RSUD|RSU|RSI|RSJ|RSK|"
     r"RSAU|KLINIK|PUSKESMAS|PKM|HERMINA|SILOAM|PRODIA|"
     r"LAB|PMI|UDD|ERHA|SKIN|JEC|SMEC|HELSA|ALIA|"
-    r"RAHO|PERISAI|STIKES)",
+    r"RAHO|PERISAI|STIKES)\b",
     re.IGNORECASE
 )
 
+PREFIX_PATTERN = re.compile(r"^(\s*(?:[-•]\s*)?(?:\*\s*)?)")
 
 def get_export_url(spreadsheet_id: str = DEFAULT_SPREADSHEET_ID) -> str:
     """Mengembalikan URL ekspor file Excel dari Google Spreadsheet."""
@@ -82,6 +83,9 @@ def fetch_available_sheets(spreadsheet_id: str = DEFAULT_SPREADSHEET_ID) -> List
     Jika terjadi kendala koneksi atau ketergantungan excel belum terpasang,
     mengembalikan daftar default.
     """
+    if not spreadsheet_id:
+        return ["CLIENT SEMARANG", "CLIENT JATIM", "CLIENT JONGGOL", "CLIENT CIKANDE", "CLIENT UEP PALEMBANG", "CLIENT NTT", "CLIENT SULSELBAR", "CLIENT PAPUA"]
+
     url = get_export_url(spreadsheet_id)
     try:
         req = urllib.request.Request(
@@ -99,22 +103,21 @@ def fetch_available_sheets(spreadsheet_id: str = DEFAULT_SPREADSHEET_ID) -> List
     
     # Fallback default sheet names jika offline atau parsing belum tersedia
     return [
-        "CLIENT JONGGOL",
-        "CLIENT BOGOR",
-        "CLIENT DEPOK",
-        "CLIENT BEKASI",
-        "CLIENT JAKARTA"
+        "CLIENT JONGGOL", "CLIENT SEMARANG", "CLIENT JATIM", "CLIENT JONGGOL", "CLIENT CIKANDE", "CLIENT UEP PALEMBANG", "CLIENT NTT", "CLIENT SULSELBAR", "CLIENT PAPUA"
     ]
 
 
 def load_hospital_master(
     spreadsheet_id: str = DEFAULT_SPREADSHEET_ID,
     sheet_name: str = DEFAULT_SHEET_NAME
-) -> Tuple[List[Dict[str, str]], Optional[str]]:
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
     Membaca data master rumah sakit dari Google Sheets pada sheet tertentu.
     Mengembalikan tuple (hospital_master, error_message).
     """
+    if not spreadsheet_id:
+        return [], "Spreadsheet ID belum dikonfigurasi di .env atau Streamlit Secrets."
+
     url = get_export_url(spreadsheet_id)
     try:
         req = urllib.request.Request(
@@ -144,7 +147,7 @@ def load_hospital_master(
     # Hapus baris tanpa Kode Unik atau Alias
     master_df = master_df.dropna(subset=["Kode Unik", "Alias"])
 
-    hospital_master: List[Dict[str, str]] = []
+    hospital_master: List[Dict[str, Any]] = []
 
     for _, row in master_df.iterrows():
         code = str(row["Kode Unik"]).strip()
@@ -156,15 +159,19 @@ def load_hospital_master(
             normalized_alias = normalize_text(alias)
             if not normalized_alias:
                 continue
+
+            # PRE-COMPILED REGEX: Kompilasi sekali saat data master dimuat
+            pattern_str = r"(?<![A-Z0-9])" + re.escape(normalized_alias) + r"(?![A-Z0-9])"
+            compiled_pattern = re.compile(pattern_str)
+
             hospital_master.append({
                 "alias": alias,
                 "normalized_alias": normalized_alias,
                 "code": code,
-                "name": official_name
+                "name": official_name,
+                "compiled_pattern": compiled_pattern
             })
 
-    # Urutkan berdasarkan panjang alias ternormalisasi secara menurun
-    # agar pencocokan nama yang lebih spesifik diprioritaskan
     hospital_master.sort(
         key=lambda x: len(x["normalized_alias"]),
         reverse=True
@@ -173,20 +180,16 @@ def load_hospital_master(
     return hospital_master, None
 
 
-def find_hospital_match(line: str, hospital_master: List[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+def find_hospital_match(line: str, hospital_master: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
-    Mencocokkan baris teks dengan master rumah sakit.
+    Mencocokkan baris teks dengan master rumah sakit menggunakan pre-compiled regex.
     Memeriksa kecocokan kata utuh dan menangani kondisi ambigu.
     """
     normalized_line = normalize_text(line)
     matches = []
 
     for hospital in hospital_master:
-        alias = hospital["normalized_alias"]
-        # Match complete words only
-        pattern = r"(?<![A-Z0-9])" + re.escape(alias) + r"(?![A-Z0-9])"
-
-        if re.search(pattern, normalized_line):
+        if hospital["compiled_pattern"].search(normalized_line):
             matches.append(hospital)
 
     if not matches:
@@ -213,7 +216,7 @@ def find_hospital_match(line: str, hospital_master: List[Dict[str, str]]) -> Opt
     }
 
 
-def add_hospital_code(line: str, hospital_master: List[Dict[str, str]]) -> Tuple[str, Optional[Dict[str, Any]]]:
+def add_hospital_code(line: str, hospital_master: List[Dict[str, Any]]) -> Tuple[str, Optional[Dict[str, Any]]]:
     """
     Menyisipkan kode rumah sakit ke dalam baris chat dengan mempertahankan prefix
     (spasi awalan, bullet points, penanda bold WhatsApp).
@@ -257,7 +260,7 @@ def is_facility_line(line: str) -> bool:
     return bool(FACILITY_PATTERN.search(normalized_line))
 
 
-def process_chat(chat_data: str, hospital_master: List[Dict[str, str]]) -> Dict[str, Any]:
+def process_chat(chat_data: str, hospital_master: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Memproses keseluruhan teks chat:
     1. Mengidentifikasi nama region dari baris pertama.

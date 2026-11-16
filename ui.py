@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ui.py
 Modul antarmuka pengguna (User Interface) berbasis Streamlit.
@@ -28,10 +27,6 @@ def get_cached_master(spreadsheet_id: str, sheet_name: str):
 
 
 def render_copy_button(text_to_copy: str, label: str = "📋 Copy ke Clipboard") -> None:
-    """
-    Menampilkan tombol Copy kustom yang menyalin teks ke clipboard secara instan
-    menggunakan JavaScript Navigator Clipboard API dengan JSON serialization yang aman.
-    """
     text_json = json.dumps(text_to_copy)
     
     copy_html = f"""
@@ -76,9 +71,8 @@ def render_copy_button(text_to_copy: str, label: str = "📋 Copy ke Clipboard")
 
 
 def render_ui() -> None:
-    """Fungsi utama untuk merender antarmuka pengguna Streamlit."""
+    """Fungsi utama untuk merender antarmuka pengguna"""
     
-    # Custom CSS untuk tampilan yang bersih dan modern
     st.markdown("""
     <style>
     .main-title {
@@ -103,6 +97,20 @@ def render_ui() -> None:
         font-family: 'Consolas', 'Courier New', monospace;
         font-size: 13.5px;
     }
+    
+    /* --- Kustomisasi Warna Tab Streamlit menjadi Hijau --- */
+    /* Warna teks saat tab aktif */
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        color: #10B981 !important;
+    }
+    /* Warna teks saat kursor diarahkan (hover) */
+    .stTabs [data-baseweb="tab-list"] button:hover {
+        color: #10B981 !important;
+    }
+    /* Warna garis bawah / indikator tab aktif */
+    .stTabs [data-baseweb="tab-list"] div[data-baseweb="tab-highlight"] {
+        background-color: #10B981 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -115,8 +123,8 @@ def render_ui() -> None:
     # Inisialisasi Session State jika belum ada
     if "process_result" not in st.session_state:
         st.session_state["process_result"] = None
-    if "edited_chat_output" not in st.session_state:
-        st.session_state["edited_chat_output"] = ""
+    if "chat_result_editor" not in st.session_state:
+        st.session_state["chat_result_editor"] = ""
     if "last_processed_region" not in st.session_state:
         st.session_state["last_processed_region"] = ""
 
@@ -200,13 +208,21 @@ def render_ui() -> None:
                     st.warning("⚠️ Data master rumah sakit kosong atau tidak ditemukan.")
                 else:
                     try:
-                        result = logic.process_chat(chat_input, hospital_master)
-                        st.session_state["process_result"] = result
-                        st.session_state["edited_chat_output"] = result["updated_text"]
-                        st.session_state["last_processed_region"] = result["region_name"]
-                        st.success(f"✅ Pemrosesan berhasil! {result['summary']['matched_lines']} fasilitas berhasil diberi kode.")
+                      result = logic.process_chat(chat_input, hospital_master)
+                      st.session_state["process_result"] = result
+                      st.session_state["chat_result_editor"] = result[
+                          "updated_text"
+                      ]
+                      st.session_state["last_processed_region"] = result[
+                          "region_name"
+                      ]
+                      st.success(
+                          "✅ Pemrosesan berhasil!"
+                          f" {result['summary']['matched_lines']} fasilitas"
+                          " berhasil diberi kode."
+                      )
                     except Exception as e:
-                        st.error(f"❌ Gagal memproses chat: {e}")
+                      st.error(f"❌ Gagal memproses chat: {e}")
 
     # ============================================================
     # 3. TAMPILAN HASIL (JIKA SUDAH DIPROSES)
@@ -222,22 +238,27 @@ def render_ui() -> None:
         top_bar_col1, top_bar_col2, top_bar_col3 = st.columns([1.5, 1.2, 1.2])
 
         # Ambil teks terbaru yang mungkin sudah diedit pengguna
-        current_text = st.session_state.get("edited_chat_output", result["updated_text"])
+        current_text = st.session_state.get(
+            "chat_result_editor", result["updated_text"]
+        )
         region_slug = st.session_state.get("last_processed_region", "CHAT")
 
         with top_bar_col1:
-            render_copy_button(current_text, label="Copy ke Clipboard")
+          render_copy_button(current_text, label="Copy ke Clipboard")
 
         with top_bar_col2:
-            txt_data = logic.generate_txt_export(current_text)
-            st.download_button(
-                label="📄 Extract ke TXT",
-                data=txt_data,
-                file_name=f"{region_slug}_dengan_kode.txt",
-                mime="text/plain",
-                use_container_width=True,
-                help="Unduh hasil chat yang tertera saat ini dalam berkas teks (.txt)"
-            )
+          txt_data = logic.generate_txt_export(current_text)
+          st.download_button(
+              label="📄 Extract ke TXT",
+              data=txt_data,
+              file_name=f"{region_slug}_dengan_kode.txt",
+              mime="text/plain",
+              use_container_width=True,
+              help=(
+                  "Unduh hasil chat yang tertera saat ini dalam berkas teks"
+                  " (.txt)"
+              ),
+          )
 
         with top_bar_col3:
             excel_bytes, excel_err = logic.generate_excel_export(result)
@@ -261,18 +282,16 @@ def render_ui() -> None:
         # --------------------------------------------------------
         # TEXT AREA HASIL YANG DAPAT DIEDIT LANGSUNG
         # --------------------------------------------------------
-        edited_text = st.text_area(
+        st.text_area(
             "Hasil Chat (Dapat diedit langsung di bawah ini):",
-            value=st.session_state["edited_chat_output"],
             height=320,
             key="chat_result_editor",
-            help="Anda dapat mengubah atau menyempurnakan teks ini secara langsung. Tombol copy dan unduh TXT akan mengikuti perubahan Anda.",
-            on_change=lambda: st.session_state.update({
-                "edited_chat_output": st.session_state.get("chat_result_editor", "")
-            })
+            help=(
+                "Anda dapat mengubah atau menyempurnakan teks ini secara"
+                " langsung. Tombol copy dan unduh TXT akan mengikuti"
+                " perubahan Anda."
+            ),
         )
-        # Pastikan session state sinkron dengan perubahan pengguna
-        st.session_state["edited_chat_output"] = edited_text
 
         # --------------------------------------------------------
         # RINGKASAN METRIK & DETAIL DIAGNOSTIK
@@ -293,9 +312,13 @@ def render_ui() -> None:
 
         with tab_unmatched:
             if result["unmatched"]:
-                st.info("Daftar baris yang terindikasi fasilitas kesehatan (RS/Klinik/Lab), namun belum ada di master data:")
+                st.warning("Daftar baris yang terindikasi fasilitas kesehatan yang belum bisa ditemukan:")
                 for item in result["unmatched"]:
-                    st.markdown(f"- **Baris {item['line_number']}**: `{item['hospital']}`")
+                    st.markdown(
+                        f"- **Baris {item['line_number']}**: "
+                        f"<code style='color: #DC2626; background-color: #FEF2F2; padding: 2px 6px; border-radius: 4px; font-weight: 600;'>{item['hospital']}</code>",
+                        unsafe_allow_html=True,
+                    )
             else:
                 st.success("Semua baris fasilitas berhasil dicocokkan! Tidak ada fasilitas yang belum terdaftar.")
 
@@ -303,9 +326,14 @@ def render_ui() -> None:
             if result["ambiguous"]:
                 st.warning("Daftar fasilitas yang memiliki lebih dari satu kemungkinan kode unik:")
                 for item in result["ambiguous"]:
-                    with st.expander(f"Baris {item['line_number']}: {item['hospital']}"):
+                    with st.expander(f"Baris {item['line_number']}: {item['hospital']}" ):
                         for m in item["matches"]:
-                            st.write(f"- Alias: **{m['alias']}** ➔ Kode: `{m['code']}` ({m.get('name', '')})")
+                            st.markdown(
+                                f"- **{m['alias']}** ➔ Kode: "
+                                f"<code style='color: #D97706; background-color: #FEFCE8; padding: 2px 6px; border-radius: 4px; font-weight: 600;'>{m['code']}</code> "
+                                f"({m.get('name', '')})",
+                                unsafe_allow_html=True,
+                            )
             else:
                 st.success("Tidak ada kecocokan yang ambigu.")
 
