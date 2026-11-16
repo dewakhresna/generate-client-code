@@ -213,9 +213,14 @@ def render_ui() -> None:
                       st.session_state["chat_result_editor"] = result[
                           "updated_text"
                       ]
-                      st.session_state["last_processed_region"] = result[
-                          "region_name"
-                      ]
+
+                      clean_sheet_slug = logic.normalize_text(
+                          final_sheet_name
+                      ).replace(" ", "_")
+                      st.session_state["last_processed_region"] = (
+                          clean_sheet_slug or "CHAT"
+                      )
+
                       st.success(
                           "✅ Pemrosesan berhasil!"
                           f" {result['summary']['matched_lines']} fasilitas"
