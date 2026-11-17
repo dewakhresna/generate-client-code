@@ -151,7 +151,7 @@ def render_ui() -> None:
         st.write("")
         st.write("")
         if st.button(
-            "🔄 Muat Ulang Master",
+            "🔄 Muat Ulang Data",
             help="Segarkan data master rumah sakit dari Google Spreadsheet",
         ):
           get_cached_master.clear()
@@ -177,7 +177,7 @@ def render_ui() -> None:
       col_btn, _ = st.columns([2, 5])
       with col_btn:
         submit_clicked = st.button(
-            "🚀 Kirim / Proses Data", type="primary", use_container_width=True
+            "Kirim / Proses Data", type="primary", use_container_width=True
         )
 
     # ============================================================
@@ -214,7 +214,7 @@ def render_ui() -> None:
 
                       st.success(
                           "✅ Pemrosesan berhasil!"
-                          f" {result['summary']['matched_lines']} fasilitas"
+                          f" {result['summary']['matched_lines']} fasilitas kesehatan"
                           " berhasil diberi kode."
                       )
                     except Exception as e:
@@ -226,7 +226,7 @@ def render_ui() -> None:
     result = st.session_state.get("process_result")
     if result:
         st.markdown("---")
-        st.subheader("📋 Hasil CHAT_DATA dengan Kode Client")
+        st.subheader("📋 Hasil Chat Data dengan Kode Client")
 
         # --------------------------------------------------------
         # BARIS ATAS: TOMBOL COPY & TOMBOL EKSTRAKSI (TXT / EXCEL)
