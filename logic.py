@@ -390,28 +390,6 @@ def generate_excel_export(process_result: Dict[str, Any]) -> Tuple[Optional[byte
             df_chat = pd.DataFrame(lines_data)
             df_chat.to_excel(writer, sheet_name="Hasil Chat", index=False)
 
-            # Sheet 2: Unmatched
-            if process_result["unmatched"]:
-                df_unmatched = pd.DataFrame([
-                    {"Baris": u["line_number"], "Tidak ditemukan": u["hospital"]}
-                    for u in process_result["unmatched"]
-                ])
-                df_unmatched.to_excel(writer, sheet_name="Tidak ditemukan", index=False)
-
-            # Sheet 3: Ambiguous
-            if process_result["ambiguous"]:
-                amb_rows = []
-                for a in process_result["ambiguous"]:
-                    for m in a["matches"]:
-                        amb_rows.append({
-                            "Baris": a["line_number"],
-                            "Data Ambigu": a["hospital"],
-                            "Kode Klient": m.get("code", ""),
-                            "Nama RS Terdaftar di Keissoft": m.get("name", "")
-                        })
-                df_ambiguous = pd.DataFrame(amb_rows)
-                df_ambiguous.to_excel(writer, sheet_name="Data Ambigu", index=False)
-
         return output.getvalue(), None
     except Exception as e:
         return None, str(e)
