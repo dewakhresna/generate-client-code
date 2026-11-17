@@ -13,6 +13,7 @@ import json
 import os
 import streamlit as st
 import streamlit.components.v1 as components
+import fitz
 import logic
 
 STATIC_SHEETS = [
@@ -77,7 +78,7 @@ def render_copy_button(text_to_copy: str, label: str = "📋 Copy ke Clipboard")
 
 @st.dialog("📖 Panduan Cara Penggunaan", width="large")
 def show_tutorial_pdf(pdf_path: str = "tutorial.pdf") -> None:
-  """Menampilkan file PDF tutorial di dalam jendela popup (dialog)."""
+  """Menampilkan halaman PDF tutorial sebagai gambar agar tidak diblokir Chrome."""
   if not os.path.exists(pdf_path):
     st.error(
         f"File panduan `{pdf_path}` tidak ditemukan. Pastikan file sudah"
@@ -88,7 +89,7 @@ def show_tutorial_pdf(pdf_path: str = "tutorial.pdf") -> None:
   with open(pdf_path, "rb") as f:
     pdf_bytes = f.read()
 
-  # Tombol unduh PDF sebagai alternatif jika browser mobile memblokir preview iframe
+  # Tombol unduh PDF
   st.download_button(
       label="📥 Unduh Panduan (PDF)",
       data=pdf_bytes,
@@ -96,17 +97,19 @@ def show_tutorial_pdf(pdf_path: str = "tutorial.pdf") -> None:
       mime="application/pdf",
   )
 
-  # Popup menggunakan Base64 iframe
-  base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-  pdf_display = f"""
-        <iframe
-            src="data:application/pdf;base64,{base64_pdf}"
-            width="100%"
-            height="600px"
-            style="border: none; border-radius: 8px;"
-        ></iframe>
-    """
-  st.markdown(pdf_display, unsafe_allow_html=True)
+  st.markdown("---")
+
+  # Render setiap halaman PDF
+  doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+  for page_num in range(len(doc)):
+    page = doc.load_page(page_num)
+    pix = page.get_pixmap(dpi=150)
+    img_bytes = pix.tobytes("png")
+    st.image(
+        img_bytes,
+        caption=f"Halaman {page_num + 1} dari {len(doc)}",
+        use_container_width=True,
+    )
 
 def render_ui() -> None:
     """Fungsi utama untuk merender antarmuka pengguna"""
