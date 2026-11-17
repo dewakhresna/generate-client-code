@@ -8,7 +8,9 @@ Menyediakan tata letak single page:
 - Panel hasil dengan tombol Copy, Extract TXT, Extract Excel, dan Text Area yang dapat diedit langsung.
 """
 
+import base64
 import json
+import os
 import streamlit as st
 import streamlit.components.v1 as components
 import logic
@@ -73,6 +75,38 @@ def render_copy_button(text_to_copy: str, label: str = "📋 Copy ke Clipboard")
     """
     components.html(copy_html, height=52)
 
+@st.dialog("📖 Panduan Cara Penggunaan", width="large")
+def show_tutorial_pdf(pdf_path: str = "tutorial.pdf") -> None:
+  """Menampilkan file PDF tutorial di dalam jendela popup (dialog)."""
+  if not os.path.exists(pdf_path):
+    st.error(
+        f"File panduan `{pdf_path}` tidak ditemukan. Pastikan file sudah"
+        " diunggah ke folder utama proyek."
+    )
+    return
+
+  with open(pdf_path, "rb") as f:
+    pdf_bytes = f.read()
+
+  # Tombol unduh PDF sebagai alternatif jika browser mobile memblokir preview iframe
+  st.download_button(
+      label="📥 Unduh Panduan (PDF)",
+      data=pdf_bytes,
+      file_name="Panduan_Penggunaan.pdf",
+      mime="application/pdf",
+  )
+
+  # Popup menggunakan Base64 iframe
+  base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+  pdf_display = f"""
+        <iframe
+            src="data:application/pdf;base64,{base64_pdf}"
+            width="100%"
+            height="600px"
+            style="border: none; border-radius: 8px;"
+        ></iframe>
+    """
+  st.markdown(pdf_display, unsafe_allow_html=True)
 
 def render_ui() -> None:
     """Fungsi utama untuk merender antarmuka pengguna"""
@@ -130,7 +164,7 @@ def render_ui() -> None:
     # 1. FORMULIR INPUT
     # ============================================================
     with st.container():
-      col_region, col_refresh = st.columns([4, 1])
+      col_region, col_refresh, col_guide = st.columns([3.2, 1.1, 1.2])
 
       with col_region:
         default_idx = 0
@@ -152,10 +186,21 @@ def render_ui() -> None:
         st.write("")
         if st.button(
             "🔄 Muat Ulang Data",
-            help="Segarkan data master rumah sakit dari Google Spreadsheet",
+            use_container_width=True,
+            help="Muat ulang data master rumah sakit.",
         ):
           get_cached_master.clear()
           st.rerun()
+
+      with col_guide:
+        st.write("")
+        st.write("")
+        if st.button(
+            "📖 Cara Penggunaan",
+            use_container_width=True,
+            help="Lihat panduan tutorial penggunaan aplikasi (PDF).",
+        ):
+          show_tutorial_pdf("tutorial.pdf")
 
       # Input Area CHAT_DATA
       chat_input = st.text_area(
@@ -226,7 +271,7 @@ def render_ui() -> None:
     result = st.session_state.get("process_result")
     if result:
         st.markdown("---")
-        st.subheader("📋 Hasil Chat Data dengan Kode Client")
+        st.subheader("📋 Hasil Chat Data dengan Kode Klien")
 
         # --------------------------------------------------------
         # BARIS ATAS: TOMBOL COPY & TOMBOL EKSTRAKSI (TXT / EXCEL)
@@ -265,7 +310,7 @@ def render_ui() -> None:
                     file_name=f"{region_slug}_laporan_lengkap.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
-                    help="Unduh data terstruktur hasil kode, fasilitas tidak cocok, dan ambigu dalam berkas Excel (.xlsx)"
+                    help="Unduh data hasil chat dengan kode dalam format Excel (.xlsx)"
                 )
             else:
                 st.button(
